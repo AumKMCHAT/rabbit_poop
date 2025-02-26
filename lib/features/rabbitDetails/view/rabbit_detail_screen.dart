@@ -125,7 +125,7 @@ class _RabbitDetailScreenState extends State<RabbitDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           _buildStatCard("${state.weight.toStringAsFixed(1)} kg", "Weight"),
-                          _buildStatCard("${state.age}", "Age"),
+                          _buildStatCard("${state.age}", "Months"),
                           _buildStatCard("${state.height.toStringAsFixed(1)} cm", "Height"),
                         ],
                       ),

@@ -1,9 +1,13 @@
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:meta/meta.dart';
 import 'package:rabbit_poop/core/database_helper.dart';
+import 'package:rabbit_poop/core/tflite_service.dart';
 import 'package:rabbit_poop/features/rabbitDetails/model/feces_today_view_model.dart';
 
 part 'rabbit_controller_event.dart';
@@ -12,6 +16,7 @@ part 'rabbit_controller_state.dart';
 
 class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerState> {
   final DatabaseHelper dbHelper = DatabaseHelper.instance;
+  final TFLiteService _tfliteService = TFLiteService();
 
   RabbitControllerBloc() : super(RabbitControllerInitial()) {
     on<AddRabbitInfoEvent>(_processAddRabbitInfoEvent);
@@ -176,7 +181,7 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
 
     // Emit state with the total number of records
     emit(TotalHealthRecordState(
-      totalHealthRecord: healthStatusRecords.length+1,
+      totalHealthRecord: healthStatusRecords.length + 1,
     ));
   }
 
@@ -184,6 +189,16 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
     final dbHelper = DatabaseHelper.instance;
     Map<String, dynamic>? existingHealthStatus;
     int? healthId = event.healthId;
+
+    XFile? imageFile = event.image; // Assume event.image contains the selected image File
+    File file = File(imageFile.path);
+
+    await _tfliteService.loadModel();
+    _tfliteService.checkModelInputShape();
+    _tfliteService.checkModelOutputShape();
+    List<dynamic> prediction = await _tfliteService.predict(file);
+
+    debugPrint("prediction: $prediction");
 
     if (healthId != null) {
       existingHealthStatus = await dbHelper.getHealthStatusByIdAndDate(

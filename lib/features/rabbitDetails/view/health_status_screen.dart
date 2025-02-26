@@ -76,14 +76,6 @@ class _RabbitHealthStatusScreenState extends State<RabbitHealthStatusScreen> {
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 centerTitle: true,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.black),
-                    onPressed: () {
-                      // TODO: Implement edit functionality
-                    },
-                  ),
-                ],
               ),
               body: SingleChildScrollView(
                 child: Padding(
@@ -176,7 +168,8 @@ class _RabbitHealthStatusScreenState extends State<RabbitHealthStatusScreen> {
                       const SizedBox(height: 20),
 
                       // Total and Recommendations
-                      Text("Total: ${state.totalFeces}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text("Total: ${state.totalFeces}",
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -192,9 +185,18 @@ class _RabbitHealthStatusScreenState extends State<RabbitHealthStatusScreen> {
                             ),
                           ],
                         ),
-                        child: const Text(
-                          "Recommend",
-                          style: TextStyle(fontSize: 14, color: Colors.black54),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "อึเล็ก:",
+                              style: TextStyle(fontSize: 14, color: Colors.black54),
+                            ),
+                            const Text(
+                              "1",
+                              style: TextStyle(fontSize: 14, color: Colors.black54),
+                            ),
+                          ],
                         ),
                       ),
                     ],

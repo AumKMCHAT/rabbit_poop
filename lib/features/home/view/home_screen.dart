@@ -116,10 +116,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ],
                             ),
-                            TextButton(
-                              onPressed: () {},
-                              child: const Text("see more"),
-                            ),
                           ],
                         ),
               
