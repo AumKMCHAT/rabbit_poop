@@ -1,10 +1,6 @@
-import 'dart:io';
-
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:rabbit_poop/features/camera/view/take_picture_screen.dart';
 import 'package:rabbit_poop/features/rabbitDetails/bloc/rabbit_controller_bloc.dart';
 
 class AddFecesDayScreen extends StatefulWidget {
@@ -61,101 +57,100 @@ class _AddFecesDayScreenState extends State<AddFecesDayScreen> {
       onPopInvokedWithResult: (didPop, result) {
         _onBackPressed(androidPop: didPop);
       },
-      child: BlocListener<RabbitControllerBloc, RabbitControllerState>(
-        listener: (context, state) {
-          if (state is NavigateToHealthStatusScreenTakePictureEventState) {
-            // Navigator.pushReplacementNamed(
-            //   context,
-            //   Constants.healthStatusScreen,
-            //   arguments: {"healthId": state.healthId, "rabbitId": widget.rabbitId},
-            // );
-            // FetchHealthStatusEvent
-            // Navigator.pop(context);
-            _onBackPressed();
-          }
-        },
-        child: Scaffold(
-          backgroundColor: Colors.grey[100], // Light background
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black),
-              onPressed: _onBackPressed,
-            ),
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Time Field
-                const Text(
-                  "Time",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      child: BlocConsumer<RabbitControllerBloc, RabbitControllerState>(
+          bloc: _rabbitControllerBloc,
+          listener: (context, state) {
+            if (state is NavigateToHealthStatusScreenTakePictureEventState) {
+              _onBackPressed();
+            }
+          },
+          builder: (context, state) {
+            if (state is RabbitControllerInitial) {
+              // Show loading indicator while fetching data
+              return const Center(child: CircularProgressIndicator());
+            }
+            return Scaffold(
+              backgroundColor: Colors.grey[100], // Light background
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: _onBackPressed,
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _timeController,
-                  readOnly: true,
-                  onTap: () => _pickTime(context),
-                  decoration: InputDecoration(
-                    hintText: "Select time",
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Feces Count
-                const Text(
-                  "Feces Count",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-
-                // Take Picture & Gallery Buttons
-                Row(
+              ),
+              body: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          _clickOpenCameraOrGallery(ImageSource.camera);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    // Time Field
+                    const Text(
+                      "Time",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _timeController,
+                      readOnly: true,
+                      onTap: () => _pickTime(context),
+                      decoration: InputDecoration(
+                        hintText: "Select time",
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
                         ),
-                        child: const Text("Take Picture", style: TextStyle(color: Colors.white)),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Container(height: 30, width: 2, color: Colors.grey[400]), // Vertical Divider
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          _clickOpenCameraOrGallery(ImageSource.gallery);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+
+                    const SizedBox(height: 20),
+
+                    // Feces Count
+                    const Text(
+                      "Feces Count",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Take Picture & Gallery Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              _clickOpenCameraOrGallery(ImageSource.camera);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[700],
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text("Take Picture", style: TextStyle(color: Colors.white)),
+                          ),
                         ),
-                        child: const Text("Gallery", style: TextStyle(color: Colors.white)),
-                      ),
+                        const SizedBox(width: 10),
+                        Container(height: 30, width: 2, color: Colors.grey[400]), // Vertical Divider
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              _clickOpenCameraOrGallery(ImageSource.gallery);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[700],
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text("Gallery", style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
+              ),
+            );
+          }),
     );
   }
 

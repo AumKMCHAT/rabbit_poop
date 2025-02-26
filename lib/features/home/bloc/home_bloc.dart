@@ -4,41 +4,53 @@ import 'package:rabbit_poop/core/database_helper.dart';
 import 'package:rabbit_poop/features/home/model/rabbit_info.dart';
 
 part 'home_event.dart';
-
 part 'home_state.dart';
 
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final DatabaseHelper dbHelper = DatabaseHelper.instance;
+  List<RabbitInfoHomeScreenModel> allRabbits = []; // Store original list
 
   HomeBloc() : super(HomeInitial()) {
     on<HomeFetchRabbitInfoEvent>(_processHomeFetchRabbitInfoEvent);
     on<HomeAddRabbitEvent>(_processHomeAddRabbitEvent);
     on<HomeOpenRabbitDetailEvent>(_processHomeOpenRabbitDetailEvent);
+    on<HomeSearchRabbitNameEvent>(_processHomeSearchRabbitNameEvent);
   }
 
-  Future<void> _processHomeFetchRabbitInfoEvent(HomeFetchRabbitInfoEvent event, emit) async {
-    await Future.delayed(const Duration(seconds: 1));
+  // ✅ Fetch All Rabbits and Cache them
+  Future<void> _processHomeFetchRabbitInfoEvent(HomeFetchRabbitInfoEvent event, Emitter<HomeState> emit) async {
+    emit(HomeLoading());
 
-    // Fetch all rabbits from the database
-    List<Map<String, dynamic>> dbRabbits = await dbHelper.getAllRabbits();
-
-    // Convert database results into model list
-    List<RabbitInfoHomeScreenModel> rabbitList = dbRabbits.map((e) {
+    final List<Map<String, dynamic>> dbRabbits = await dbHelper.getAllRabbits();
+    allRabbits = dbRabbits.map((e) {
       return RabbitInfoHomeScreenModel(
         name: e['name'],
         age: e['age'],
-        rabbitId: e['id'], // Use the SQLite ID
+        rabbitId: e['id'],
       );
     }).toList();
 
-    emit(HomeShowRabbitListState(rabbitInfos: rabbitList));
+    emit(HomeShowRabbitListState(rabbitInfos: allRabbits));
   }
 
-  Future<void> _processHomeAddRabbitEvent(HomeAddRabbitEvent event, emit) async {
+  Future<void> _processHomeAddRabbitEvent(HomeAddRabbitEvent event, Emitter<HomeState> emit) async {
     emit(HomeNavigateToAddRabbitScreenState());
   }
 
-  Future<void> _processHomeOpenRabbitDetailEvent(HomeOpenRabbitDetailEvent event, emit) async {
+  Future<void> _processHomeOpenRabbitDetailEvent(HomeOpenRabbitDetailEvent event, Emitter<HomeState> emit) async {
     emit(HomeNavigateToOpenRabbitDetailScreenState(rabbitId: event.rabbitId));
+  }
+
+  // ✅ Search Logic: Filter Cached Rabbits
+  Future<void> _processHomeSearchRabbitNameEvent(HomeSearchRabbitNameEvent event, Emitter<HomeState> emit) async {
+    if (event.query.isEmpty) {
+      emit(HomeShowRabbitListState(rabbitInfos: allRabbits));
+      return;
+    }
+
+    final filteredRabbits =
+        allRabbits.where((rabbit) => rabbit.name.toLowerCase().contains(event.query.toLowerCase())).toList();
+
+    emit(HomeShowRabbitListState(rabbitInfos: filteredRabbits));
   }
 }

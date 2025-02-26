@@ -1,8 +1,6 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:rabbit_poop/features/camera/view/take_picture_screen.dart';
 import 'package:rabbit_poop/features/rabbitDetails/bloc/rabbit_controller_bloc.dart';
 import 'package:rabbit_poop/utility/constants.dart';
 

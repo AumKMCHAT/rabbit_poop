@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:rabbit_poop/features/camera/view/take_picture_screen.dart';
 import 'package:rabbit_poop/features/rabbitDetails/view/add_rabbit_feces_day_screen.dart';
 import 'package:rabbit_poop/features/rabbitDetails/view/add_rabbit_poop_entry_screen.dart';
 import 'package:rabbit_poop/features/rabbitDetails/view/add_rabbit_screen.dart';
@@ -7,6 +6,7 @@ import 'package:rabbit_poop/features/rabbitDetails/view/health_status_screen.dar
 import 'package:rabbit_poop/features/rabbitDetails/view/rabbit_detail_screen.dart';
 import 'package:rabbit_poop/features/welcome/view/welcome_screen.dart';
 import 'package:rabbit_poop/utility/constants.dart';
+
 import '../features/home/view/home_screen.dart';
 
 class AppRouter {
@@ -80,7 +80,7 @@ class AppRouter {
           builder: (_) => AddFecesDayScreen(
             healthId: healthId,
             rabbitId: rabbitId,
-              date: date,
+            date: date,
           ),
         );
 

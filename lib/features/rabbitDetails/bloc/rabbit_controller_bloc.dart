@@ -1,17 +1,14 @@
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+
 import 'package:bloc/bloc.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:meta/meta.dart';
 import 'package:rabbit_poop/core/database_helper.dart';
 import 'package:rabbit_poop/core/tflite_service.dart';
 import 'package:rabbit_poop/features/rabbitDetails/model/feces_today_view_model.dart';
 
 part 'rabbit_controller_event.dart';
-
 part 'rabbit_controller_state.dart';
 
 class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerState> {
@@ -140,6 +137,16 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
         totalFeces: 0,
         fecesTodayList: [],
         date: "",
+        fecesCount: {
+          "Normal": 0,
+          "Cecotroph": 0,
+          "Small Misshapen": 0,
+          "Large Fecal Pellets": 0,
+          "String of Pearls": 0,
+          "Mucus On": 0,
+          "Diarrhea": 0,
+          "Bloody Stool": 0,
+        },
       ));
       return;
     }
@@ -152,26 +159,59 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
     final fecesRecords = await dbHelper.getFecesRecordsByHealthStatus(healthStatusId);
 
     // Step 3: Convert raw data into model and parse time
-    List<FecesToday> fecesTodayList = fecesRecords.map((record) {
+    Map<String, int> timeGroupedFeces = {};
+    Map<String, int> fecesCount = {
+      "Normal": 0,
+      "Cecotroph": 0,
+      "Small Misshapen": 0,
+      "Large Fecal Pellets": 0,
+      "String of Pearls": 0,
+      "Mucus On": 0,
+      "Diarrhea": 0,
+      "Bloody Stool": 0,
+    };
+
+    int totalFeces = 0;
+
+    for (var record in fecesRecords) {
+      String fecesType = record['feces_type'] ?? "Unknown";
+      String time = record['time'];
+      int quantity = record['quantity'] ?? 1;
+
+      // **Combine same time records** by summing up quantities
+      timeGroupedFeces[time] = (timeGroupedFeces[time] ?? 0) + quantity;
+
+      // Count feces by type
+      if (fecesCount.containsKey(fecesType)) {
+        fecesCount[fecesType] = (fecesCount[fecesType] ?? 0) + quantity;
+      }
+
+      // Update total feces count
+      totalFeces += quantity;
+    }
+
+    // Step 4: Convert combined time map into a list
+    List<FecesToday> fecesTodayList = timeGroupedFeces.entries.map((entry) {
       return FecesToday(
-        time: record['time'],
-        quantity: record['quantity'],
+        time: entry.key,
+        quantity: entry.value,
       );
     }).toList();
 
-    // Step 4: Sort fecesTodayList by time
+    // Step 5: Sort fecesTodayList by time
     fecesTodayList.sort((a, b) {
       DateTime timeA = _parseTime(a.time);
       DateTime timeB = _parseTime(b.time);
       return timeA.compareTo(timeB);
     });
 
-    // Step 5: Emit state with sorted data
+    // Step 6: Emit state with sorted data and feces count
     emit(ShowHealthStatusState(
       healthStatus: healthStatus,
-      totalFeces: fecesTodayList.length,
+      totalFeces: totalFeces,
       fecesTodayList: fecesTodayList,
       date: date,
+      fecesCount: fecesCount, // Updated feces count
     ));
   }
 
@@ -186,20 +226,25 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
   }
 
   Future<void> _processTakePictureEvent(TakePictureEvent event, emit) async {
+    emit(RabbitControllerInitial());
+
     final dbHelper = DatabaseHelper.instance;
     Map<String, dynamic>? existingHealthStatus;
     int? healthId = event.healthId;
 
-    XFile? imageFile = event.image; // Assume event.image contains the selected image File
+    XFile? imageFile = event.image;
     File file = File(imageFile.path);
 
     await _tfliteService.loadModel();
     _tfliteService.checkModelInputShape();
     _tfliteService.checkModelOutputShape();
-    List<dynamic> prediction = await _tfliteService.predict(file);
 
-    debugPrint("prediction: $prediction");
+    // Run inference and get results
+    Map<String, int> prediction = await _tfliteService.predict(file);
 
+    debugPrint("Prediction: $prediction");
+
+    // Retrieve or create a health status entry
     if (healthId != null) {
       existingHealthStatus = await dbHelper.getHealthStatusByIdAndDate(
         healthId,
@@ -213,28 +258,39 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
     }
 
     int healthStatusId;
-
     if (existingHealthStatus != null) {
-      // Health status already exists, use the existing ID
       healthStatusId = existingHealthStatus['id'];
     } else {
-      // Insert new health status since it does not exist
       healthStatusId = await dbHelper.insertHealthStatus(
         event.rabbitId,
         event.date,
-        "Normal", // Mock data for health status
-        "No issues detected", // Mock data for recommendation
+        _determineHealthStatus(prediction),
+        _generateRecommendation(prediction),
       );
     }
 
-    // Step 2: Insert Feces Record linked to the healthStatusId
-    int fecesRecordId = await dbHelper.insertFecesRecord(
-      healthStatusId,
-      event.time ?? DateFormat('HH:mm').format(DateTime.now()), // Get only time
-      1, // Mock quantity
-    );
+    // Step 1: Store detected feces data
+    bool hasFeces = prediction.values.any((quantity) => quantity > 0);
 
-    // Navigate to Health Status Screen
+    for (var entry in prediction.entries) {
+      await dbHelper.insertFecesRecord(
+        healthStatusId,
+        event.time ?? DateFormat('HH:mm').format(DateTime.now()), // Use event time or fallback
+        entry.value, // Quantity detected
+        entry.key, // Feces type
+      );
+    }
+
+    // Step 2: If no feces detected, store a default record with quantity 0
+    if (!hasFeces) {
+      await dbHelper.insertFecesRecord(
+        healthStatusId,
+        event.time ?? DateFormat('HH:mm').format(DateTime.now()), // Use event time or fallback
+        0, // No feces detected
+        "No Feces", // Label for no detection
+      );
+    }
+
     emit(NavigateToHealthStatusScreenTakePictureEventState(healthId: healthStatusId));
   }
 
@@ -255,5 +311,28 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
       debugPrint("Error parsing time: $e");
       return DateTime(2000, 1, 1); // Return a default time to avoid crashes
     }
+  }
+
+  String _determineHealthStatus(Map<String, int> fecesCount) {
+    if (fecesCount["Diarrhea"]! > 0 || fecesCount["Bloody Stool"]! > 0) {
+      return "Unhealthy";
+    }
+    if (fecesCount["Small Misshapen"]! > 3 || fecesCount["Mucus On"]! > 1) {
+      return "Potential Issue";
+    }
+    return "Normal";
+  }
+
+  String _generateRecommendation(Map<String, int> fecesCount) {
+    if (fecesCount["Diarrhea"]! > 0) {
+      return "Monitor rabbit for dehydration. Provide more fiber.";
+    }
+    if (fecesCount["Bloody Stool"]! > 0) {
+      return "Seek veterinary attention immediately.";
+    }
+    if (fecesCount["Small Misshapen"]! > 3) {
+      return "Increase hydration and check diet.";
+    }
+    return "No issues detected.";
   }
 }

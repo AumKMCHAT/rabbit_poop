@@ -14,3 +14,9 @@ final class HomeOpenRabbitDetailEvent extends HomeEvent {
     required this.rabbitId,
   }) : super();
 }
+
+final class HomeSearchRabbitNameEvent extends HomeEvent {
+  final String query;
+
+  HomeSearchRabbitNameEvent({required this.query});
+}

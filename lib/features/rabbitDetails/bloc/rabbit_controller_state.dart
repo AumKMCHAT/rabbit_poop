@@ -77,11 +77,13 @@ final class ShowHealthStatusState extends RabbitControllerState {
   final String healthStatus;
   final int totalFeces;
   final List<FecesToday> fecesTodayList;
+  final Map<String, int> fecesCount;
   final String date;
 
   ShowHealthStatusState({
     required this.healthStatus,
     required this.totalFeces,
+    required this.fecesCount,
     required this.fecesTodayList,
     required this.date,
   }) : super();

@@ -1,5 +1,5 @@
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
@@ -15,12 +15,13 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDB(String fileName) async {
-    final directory = await getApplicationDocumentsDirectory(); // Use path_provider
+    final directory = await getApplicationDocumentsDirectory();
     final path = join(directory.path, fileName);
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // 🚀 Incremented version for schema change
       onCreate: _createDB,
+      onUpgrade: _upgradeDB, // ✅ Handle database upgrades
     );
   }
 
@@ -32,7 +33,7 @@ class DatabaseHelper {
         age INTEGER NOT NULL,
         weight REAL NOT NULL,
         height REAL NOT NULL,
-        about TEXT,  -- Nullable column added
+        about TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
@@ -54,6 +55,7 @@ class DatabaseHelper {
         health_status_id INTEGER NOT NULL,
         time TEXT NOT NULL,
         quantity INTEGER NOT NULL,
+        feces_type TEXT NOT NULL, -- ✅ Added feces_type column
         FOREIGN KEY (health_status_id) REFERENCES health_status(id) ON DELETE CASCADE
       )
     ''');
@@ -66,6 +68,13 @@ class DatabaseHelper {
         FOREIGN KEY (feces_record_id) REFERENCES feces_records(id) ON DELETE CASCADE
       )
     ''');
+  }
+
+  // ✅ Handle database upgrades (for adding new columns)
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE feces_records ADD COLUMN feces_type TEXT NOT NULL DEFAULT "Unknown"');
+    }
   }
 
   // ✅ Insert Rabbit
@@ -87,14 +96,14 @@ class DatabaseHelper {
     return result.isNotEmpty ? result.first : null;
   }
 
-// ✅ Get Health History for a Rabbit
+  // ✅ Get Health History for a Rabbit
   Future<List<Map<String, dynamic>>> getHealthHistory(int rabbitId) async {
     final db = await database;
     return await db.query(
       'health_status',
       where: 'rabbit_id = ?',
       whereArgs: [rabbitId],
-      orderBy: 'date DESC', // Fetch latest first
+      orderBy: 'date DESC',
     );
   }
 
@@ -127,7 +136,7 @@ class DatabaseHelper {
       'feces_records',
       where: 'health_status_id = ?',
       whereArgs: [healthStatusId],
-      orderBy: 'time ASC', // Sort by time to display in chronological order
+      orderBy: 'time ASC',
     );
   }
 
@@ -142,13 +151,14 @@ class DatabaseHelper {
     });
   }
 
-  // ✅ Insert Feces Record
-  Future<int> insertFecesRecord(int healthStatusId, String time, int quantity) async {
+  // ✅ Insert Feces Record (Now Includes feces_type)
+  Future<int> insertFecesRecord(int healthStatusId, String time, int quantity, String fecesType) async {
     final db = await database;
     return await db.insert('feces_records', {
       'health_status_id': healthStatusId,
       'time': time,
       'quantity': quantity,
+      'feces_type': fecesType, // ✅ Ensured feces_type is included
     });
   }
 
@@ -161,51 +171,39 @@ class DatabaseHelper {
     });
   }
 
-  // ✅ Fetch Health Status for a Rabbit
+  // ✅ Fetch Latest Health Status for a Rabbit
   Future<Map<String, dynamic>?> getLatestHealthStatus(int rabbitId) async {
     final db = await database;
     final result = await db.query(
       'health_status',
       where: 'rabbit_id = ?',
       whereArgs: [rabbitId],
-      orderBy: 'date DESC', // Get the latest health status
+      orderBy: 'date DESC',
       limit: 1,
     );
     return result.isNotEmpty ? result.first : null;
   }
 
-  // ✅ Fetch Health Status using Health ID
+  // ✅ Fetch Health Status by ID
   Future<Map<String, dynamic>?> getHealthStatusById(int healthId) async {
     final db = await database;
     final result = await db.query(
       'health_status',
-      columns: ['id', 'rabbit_id', 'date', 'status', 'recommendation'], // Explicitly select columns
-      where: 'id = ?', // ✅ Filter by health_id
+      where: 'id = ?',
       whereArgs: [healthId],
       limit: 1,
     );
     return result.isNotEmpty ? result.first : null;
   }
 
-  // ✅ Check if health status exists for rabbitId and date
+  // ✅ Get Health Status by Rabbit ID & Date
   Future<Map<String, dynamic>?> getHealthStatusByRabbitIdAndDate(int rabbitId, String date) async {
     final db = await database;
-    List<Map<String, dynamic>> result = await db.query(
+    final result = await db.query(
       'health_status',
       where: 'rabbit_id = ? AND date = ?',
       whereArgs: [rabbitId, date],
       limit: 1,
-    );
-    return result.isNotEmpty ? result.first : null;
-  }
-
-  Future<Map<String, dynamic>?> getHealthStatusByIdAndDate(int healthId, String date) async {
-    final db = await database;
-    List<Map<String, dynamic>> result = await db.query(
-      'health_status',
-      where: 'id = ? AND date = ?',
-      whereArgs: [healthId, date],
-      limit: 1, // Ensure only one record is returned
     );
     return result.isNotEmpty ? result.first : null;
   }
@@ -217,7 +215,28 @@ class DatabaseHelper {
       'health_status',
       where: 'rabbit_id = ?',
       whereArgs: [rabbitId],
-      orderBy: 'date DESC', // Sort by date (latest first)
+      orderBy: 'date DESC',
+    );
+  }
+
+  // ✅ Get Health Status by Health ID and Date
+  Future<Map<String, dynamic>?> getHealthStatusByIdAndDate(int healthId, String date) async {
+    final db = await database;
+    List<Map<String, dynamic>> result = await db.query(
+      'health_status',
+      where: 'id = ? AND date = ?',
+      whereArgs: [healthId, date],
+      limit: 1, // Ensure only one record is returned
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> searchRabbitsByName(String query) async {
+    final db = await database;
+    return await db.query(
+      'rabbits',
+      where: 'name LIKE ?',
+      whereArgs: ['%$query%'], // Case-insensitive search
     );
   }
 }

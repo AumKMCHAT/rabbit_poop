@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:rabbit_poop/features/home/bloc/home_bloc.dart';
 import 'package:rabbit_poop/features/rabbitDetails/bloc/rabbit_controller_bloc.dart';
-import 'core/router.dart';
+
 import 'core/di.dart';
+import 'core/router.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:rabbit_poop/features/rabbitDetails/bloc/rabbit_controller_bloc.dart';
+import 'package:rabbit_poop/features/rabbitDetails/widget/feces_table_widget.dart';
 import 'package:rabbit_poop/utility/constants.dart';
 
 class RabbitHealthStatusScreen extends StatefulWidget {
@@ -167,37 +168,9 @@ class _RabbitHealthStatusScreenState extends State<RabbitHealthStatusScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Total and Recommendations
-                      Text("Total: ${state.totalFeces}",
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 5,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              "อึเล็ก:",
-                              style: TextStyle(fontSize: 14, color: Colors.black54),
-                            ),
-                            const Text(
-                              "1",
-                              style: TextStyle(fontSize: 14, color: Colors.black54),
-                            ),
-                          ],
-                        ),
+                      FecesTable(
+                        fecesCount: state.fecesCount,
+                        totalFeces: state.totalFeces,
                       ),
                     ],
                   ),

@@ -165,8 +165,8 @@ class _RabbitDetailScreenState extends State<RabbitDetailScreen> {
                                     title: Text(state.healthHistoryItemList[index].date),
                                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                                     onTap: () {
-                                      _rabbitControllerBloc.add(
-                                          NavigateToHealthStatusScreenEvent(healthId: state.healthHistoryItemList[index].healthId));
+                                      _rabbitControllerBloc.add(NavigateToHealthStatusScreenEvent(
+                                          healthId: state.healthHistoryItemList[index].healthId));
                                     },
                                   );
                                 },

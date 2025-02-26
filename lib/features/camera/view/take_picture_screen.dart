@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
 import 'package:rabbit_poop/features/rabbitDetails/bloc/rabbit_controller_bloc.dart';
 
 class TakePictureScreen extends StatefulWidget {
