@@ -1,146 +1,52 @@
-import 'dart:io';
+import 'dart:developer';
+import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:flutter_vision/flutter_vision.dart';
 
 class TFLiteService {
-  late Interpreter interpreter;
 
-  /// Load TensorFlow Lite model from assets
-  Future<void> loadModel() async {
-    try {
-      interpreter = await Interpreter.fromAsset('assets/models/best_float32.tflite');
-      debugPrint("TFLite model loaded!");
-    } catch (e) {
-      debugPrint("Error loading model: $e");
-    }
+  final FlutterVision vision = FlutterVision();
+
+  Future<void> loadModelFlutterVision() async {
+    await vision.loadYoloModel(
+      modelPath: "assets/models/best_float32.tflite",
+      labels: "assets/models/labels.txt",
+      modelVersion: "yolov8",
+      // Specify YOLOv8
+      quantization: false,
+      // Since we are using float32
+      numThreads: 1, // Adjust based on performance needs
+    );
   }
 
-  /// Check model input shape
-  void checkModelInputShape() {
+  Future<Map<String, int>> runYOLOv8(Uint8List imageBytes) async {
     try {
-      final inputShape = interpreter.getInputTensor(0).shape;
-      debugPrint("Model Input Shape: $inputShape");
-    } catch (e) {
-      debugPrint("Error checking input shape: $e");
-    }
-  }
-
-  /// Check model output shape
-  void checkModelOutputShape() {
-    try {
-      final outputShape = interpreter.getOutputTensor(0).shape;
-      debugPrint("Model Output Shape: $outputShape");
-    } catch (e) {
-      debugPrint("Error checking output shape: $e");
-    }
-  }
-
-  /// Run inference and return detected feces count
-  Future<Map<String, int>> predict(File imageFile) async {
-    try {
-      var input = await _preprocessImage(imageFile);
-      var output = List.generate(1, (_) => List.generate(12, (_) => List.filled(8400, 0.0)));
-
-      interpreter.run(input, output);
-      return _parseModelOutput(output);
-    } catch (e) {
-      debugPrint("Error during prediction: $e");
-      return _getEmptyPrediction();
-    }
-  }
-
-  /// Preprocess the image: resize, normalize, and convert to tensor
-  Future<List<List<List<List<double>>>>> _preprocessImage(File imageFile) async {
-    try {
-      img.Image image = img.decodeImage(await imageFile.readAsBytes())!;
-      img.Image resizedImage = img.copyResize(image, width: 640, height: 640);
-
-      List<List<List<double>>> imageTensor = List.generate(
-        640,
-        (y) => List.generate(
-          640,
-          (x) {
-            final pixel = resizedImage.getPixel(x, y);
-            return [pixel.r.toDouble() / 255.0, pixel.g.toDouble() / 255.0, pixel.b.toDouble() / 255.0];
-          },
-        ),
+      final List<Map<String, dynamic>> results = await vision.yoloOnImage(
+        bytesList: imageBytes,
+        imageHeight: 640, // Adjust based on model
+        imageWidth: 640, // Adjust based on model
+        iouThreshold: 0.4, // Intersection over Union threshold
+        confThreshold: 0.5, // Confidence threshold
       );
 
-      return [imageTensor];
-    } catch (e) {
-      debugPrint("Error during image preprocessing: $e");
-      return [
-        [
-          [[]]
-        ]
-      ]; // Return an empty structure
-    }
-  }
+      // 🛑 Exclude labels "a", "b", "c", "d"
+      final ignoredLabels = {"a", "b", "c", "d"};
 
-  /// Parse model output into a human-readable format
-  Map<String, int> _parseModelOutput(List<List<List<double>>> output) {
-    Map<String, int> fecesCount = _getEmptyPrediction();
-
-    try {
-      for (int i = 0; i < 8400; i++) {
-        double confidence = output[0][4][i]; // Confidence score
-        if (confidence > 0.3) {
-          // Only count detections above confidence threshold
-          int classIndex = _getMaxClassIndex(output[0], i);
-          if (classIndex >= 0 && classIndex < labels.length) {
-            fecesCount[labels[classIndex]] = (fecesCount[labels[classIndex]] ?? 0) + 1;
-          }
+      // ✅ Process results: Count detections per label
+      Map<String, int> fecesCount = {};
+      for (var detection in results) {
+        String label = detection['tag'];
+        if (!ignoredLabels.contains(label)) {
+          fecesCount[label] = (fecesCount[label] ?? 0) + 1;
         }
       }
+
+      log("🟢 Raw Processed YOLO Results: $results");
+      log("🟢 Processed YOLO Results: $fecesCount");
+      return fecesCount;
     } catch (e) {
-      debugPrint("Error parsing model output: $e");
+      log("🚨 Error in YOLO Detection: $e");
+      return {}; // Return an empty map on error
     }
-
-    return fecesCount;
-  }
-
-  /// Get the class index with the highest confidence
-  int _getMaxClassIndex(List<List<double>> output, int index) {
-    double maxVal = -double.infinity;
-    int maxIndex = -1;
-    try {
-      for (int j = 5; j < 12; j++) {
-        if (output[j][index] > maxVal) {
-          maxVal = output[j][index];
-          maxIndex = j - 5; // Adjust index to match label list
-        }
-      }
-    } catch (e) {
-      debugPrint("Error finding max class index: $e");
-    }
-    return maxIndex;
-  }
-
-  /// Labels corresponding to model output
-  final List<String> labels = [
-    "Normal",
-    "Cecotroph",
-    "Small Misshapen",
-    "Large Fecal Pellets",
-    "String of Pearls",
-    "Mucus On",
-    "Diarrhea",
-    "Bloody Stool",
-  ];
-
-  /// Return an empty map for error handling
-  Map<String, int> _getEmptyPrediction() {
-    return {
-      "Normal": 0,
-      "Cecotroph": 0,
-      "Small Misshapen": 0,
-      "Large Fecal Pellets": 0,
-      "String of Pearls": 0,
-      "Mucus On": 0,
-      "Diarrhea": 0,
-      "Bloody Stool": 0,
-    };
   }
 }

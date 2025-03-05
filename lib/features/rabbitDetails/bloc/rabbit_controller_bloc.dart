@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:bloc/bloc.dart';
@@ -92,7 +93,7 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
         height: 0.0,
         age: 0,
         aboutRabbit: "No data available",
-        healthHistoryItemList: [],
+        healthHistoryItemList: const [],
       ));
       return;
     }
@@ -135,9 +136,9 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
       emit(ShowHealthStatusState(
         healthStatus: "No data",
         totalFeces: 0,
-        fecesTodayList: [],
+        fecesTodayList: const [],
         date: "",
-        fecesCount: {
+        fecesCount: const {
           "Normal": 0,
           "Cecotroph": 0,
           "Small Misshapen": 0,
@@ -160,33 +161,38 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
 
     // Step 3: Convert raw data into model and parse time
     Map<String, int> timeGroupedFeces = {};
-    Map<String, int> fecesCount = {
-      "Normal": 0,
-      "Cecotroph": 0,
-      "Small Misshapen": 0,
-      "Large Fecal Pellets": 0,
-      "String of Pearls": 0,
-      "Mucus On": 0,
-      "Diarrhea": 0,
-      "Bloody Stool": 0,
+    final Set<String> validFecesTypes = {
+      "Normal",
+      "Cecotroph",
+      "Small Misshapen",
+      "Large Fecal Pellets",
+      "String of Pearls",
+      "Mucus On",
+      "Diarrhea",
+      "Bloody Stool"
     };
 
     int totalFeces = 0;
 
+    Map<String, int> fecesCount = {for (var key in validFecesTypes) key: 0};
+
     for (var record in fecesRecords) {
-      String fecesType = record['feces_type'] ?? "Unknown";
+      String rawFecesType = record['feces_type'] ?? "Unknown";
       String time = record['time'];
-      int quantity = record['quantity'] ?? 1;
+      int quantity = record['quantity'] ?? 0;
 
       // **Combine same time records** by summing up quantities
       timeGroupedFeces[time] = (timeGroupedFeces[time] ?? 0) + quantity;
 
-      // Count feces by type
-      if (fecesCount.containsKey(fecesType)) {
-        fecesCount[fecesType] = (fecesCount[fecesType] ?? 0) + quantity;
-      }
+      // Normalize the label (ignore case differences)
+      String formattedFecesType = _normalizeFecesType(rawFecesType);
 
-      // Update total feces count
+      // ✅ Filter out unwanted labels like "a", "b", "c", "d"
+      if (validFecesTypes.contains(formattedFecesType)) {
+        fecesCount[formattedFecesType] = (fecesCount[formattedFecesType] ?? 0) + quantity;
+      } else {
+        log("⚠️ Ignored feces type: $rawFecesType");
+      }
       totalFeces += quantity;
     }
 
@@ -232,19 +238,14 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
     Map<String, dynamic>? existingHealthStatus;
     int? healthId = event.healthId;
 
-    XFile? imageFile = event.image;
-    File file = File(imageFile.path);
+    final imageData = File(event.image.path).readAsBytesSync();
 
-    await _tfliteService.loadModel();
-    _tfliteService.checkModelInputShape();
-    _tfliteService.checkModelOutputShape();
+    await _tfliteService.loadModelFlutterVision();
+    final resultFromYOLO = await _tfliteService.runYOLOv8(imageData);
 
-    // Run inference and get results
-    Map<String, int> prediction = await _tfliteService.predict(file);
+    log("🤢 YOLOv8 Detection Result: $resultFromYOLO");
 
-    debugPrint("Prediction: $prediction");
-
-    // Retrieve or create a health status entry
+    // ✅ Retrieve or create a health status entry
     if (healthId != null) {
       existingHealthStatus = await dbHelper.getHealthStatusByIdAndDate(
         healthId,
@@ -264,24 +265,24 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
       healthStatusId = await dbHelper.insertHealthStatus(
         event.rabbitId,
         event.date,
-        _determineHealthStatus(prediction),
-        _generateRecommendation(prediction),
+        _determineHealthStatus(resultFromYOLO),
+        _generateRecommendation(resultFromYOLO),
       );
     }
 
-    // Step 1: Store detected feces data
-    bool hasFeces = prediction.values.any((quantity) => quantity > 0);
+    // ✅ Store detected feces data
+    bool hasFeces = resultFromYOLO.values.any((quantity) => quantity > 0);
 
-    for (var entry in prediction.entries) {
+    for (var entry in resultFromYOLO.entries) {
       await dbHelper.insertFecesRecord(
         healthStatusId,
         event.time ?? DateFormat('HH:mm').format(DateTime.now()), // Use event time or fallback
-        entry.value, // Quantity detected
+        entry.value.floor(), // Quantity detected
         entry.key, // Feces type
       );
     }
 
-    // Step 2: If no feces detected, store a default record with quantity 0
+    // ✅ If no feces detected, store a default record
     if (!hasFeces) {
       await dbHelper.insertFecesRecord(
         healthStatusId,
@@ -296,6 +297,30 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
 
   Future<void> _processNavigateToAddFecesTodayScreenEvent(NavigateToAddFecesDayScreenEvent event, emit) async {
     emit(NavigateToAddNewFecesDayScreenState(date: event.date));
+  }
+
+  // TODO: KRIT, SAPAI FIX THIS FUNCTION TO DETERMIN HEALTH STATUS
+  String _determineHealthStatus(Map<String, int> fecesCount) {
+    if ((fecesCount["Diarrhea"] ?? 0) > 0 || (fecesCount["Bloody Stool"] ?? 0) > 0) {
+      return "Unhealthy";
+    }
+    if ((fecesCount["Small Misshapen"] ?? 0) > 3 || (fecesCount["Mucus On"] ?? 0) > 1) {
+      return "Potential Issue";
+    }
+    return "Normal";
+  }
+
+  String _generateRecommendation(Map<String, int> fecesCount) {
+    if ((fecesCount["Diarrhea"] ?? 0) > 0) {
+      return "Monitor rabbit for dehydration. Provide more fiber.";
+    }
+    if ((fecesCount["Bloody Stool"] ?? 0) > 0) {
+      return "Seek veterinary attention immediately.";
+    }
+    if ((fecesCount["Small Misshapen"] ?? 0) > 3) {
+      return "Increase hydration and check diet.";
+    }
+    return "No issues detected.";
   }
 
   // ✅ Function to Parse Time String into DateTime
@@ -313,26 +338,18 @@ class RabbitControllerBloc extends Bloc<RabbitControllerEvent, RabbitControllerS
     }
   }
 
-  String _determineHealthStatus(Map<String, int> fecesCount) {
-    if (fecesCount["Diarrhea"]! > 0 || fecesCount["Bloody Stool"]! > 0) {
-      return "Unhealthy";
-    }
-    if (fecesCount["Small Misshapen"]! > 3 || fecesCount["Mucus On"]! > 1) {
-      return "Potential Issue";
-    }
-    return "Normal";
-  }
+  String _normalizeFecesType(String rawType) {
+    Map<String, String> normalizationMap = {
+      "bloody stool": "Bloody Stool",
+      "cecotroph": "Cecotroph",
+      "diarrhea": "Diarrhea",
+      "large fecal pellets": "Large Fecal Pellets",
+      "mucus on": "Mucus On",
+      "normal": "Normal",
+      "small misshapen": "Small Misshapen",
+      "string of pearls": "String of Pearls"
+    };
 
-  String _generateRecommendation(Map<String, int> fecesCount) {
-    if (fecesCount["Diarrhea"]! > 0) {
-      return "Monitor rabbit for dehydration. Provide more fiber.";
-    }
-    if (fecesCount["Bloody Stool"]! > 0) {
-      return "Seek veterinary attention immediately.";
-    }
-    if (fecesCount["Small Misshapen"]! > 3) {
-      return "Increase hydration and check diet.";
-    }
-    return "No issues detected.";
+    return normalizationMap[rawType.toLowerCase()] ?? rawType;
   }
 }

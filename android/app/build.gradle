@@ -7,8 +7,13 @@ plugins {
 
 android {
     namespace = "com.example.rabbit_poop"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
+
+    aaptOptions {
+        noCompress 'tflite'
+        noCompress 'lite'
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
